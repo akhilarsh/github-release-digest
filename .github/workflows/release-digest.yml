@@ -1,9 +1,6 @@
 name: Release Digest
 
 on:
-  schedule:
-    # Run every day at 9:00 AM UTC
-    - cron: '30 2 * * *'
   workflow_dispatch:
     inputs:
       RELEASE_TIMEFRAME:
