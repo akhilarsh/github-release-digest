@@ -1,0 +1,15 @@
+{
+  "editor.quickSuggestions": {
+    "comments": true,
+    "strings": true,
+    "other": true
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "files.exclude": {
+    "**/*.js": { "when": "$(basename).ts" },
+    "**/*.js.map": true
+  },
+  "cSpell.words": ["datetime", "dbname", "DDTHH", "filenamify", "pino", "prettier", "testinqabot"]
+}

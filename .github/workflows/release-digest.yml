@@ -1,0 +1,88 @@
+name: Release Digest
+
+on:
+  schedule:
+    # Run every day at 9:00 AM UTC
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      RELEASE_TIMEFRAME:
+        description: 'Release timeframe'
+        required: true
+        default: 'recent'
+        type: choice
+        options:
+          - recent
+          - daily
+      VALUE:
+        description: |
+          For 'recent', enter hours to look back (e.g. 24).
+          For 'daily', enter the target date (YYYY-MM-DD, today, or yesterday).
+        required: true
+        default: '24'
+
+
+jobs:
+  release-summary:
+    runs-on: ubuntu-latest
+    name: "Release Digest (${{ github.event.inputs.RELEASE_TIMEFRAME }}: ${{ github.event.inputs.VALUE }})"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Validate required variables and set env
+        id: setenv
+        run: |
+          if [ -z "${{ vars.ORG_NAME }}" ]; then
+            echo "Error: ORG_NAME variable is not set"
+            exit 1
+          fi
+          if [ "${{ github.event.inputs.RELEASE_TIMEFRAME }}" = "recent" ]; then
+            if ! [[ "${{ github.event.inputs.VALUE }}" =~ ^[0-9]+$ ]]; then
+              echo "For 'recent' timeframe, VALUE must be a number (hours back)."
+              exit 1
+            fi
+            echo "HOURS_BACK=${{ github.event.inputs.VALUE }}" >> $GITHUB_ENV
+            echo "TARGET_DATE=" >> $GITHUB_ENV
+          elif [ "${{ github.event.inputs.RELEASE_TIMEFRAME }}" = "daily" ]; then
+            if [ -z "${{ github.event.inputs.VALUE }}" ]; then
+              echo "For 'daily' timeframe, VALUE must be a date (YYYY-MM-DD, today, or yesterday)."
+              exit 1
+            fi
+            echo "HOURS_BACK=" >> $GITHUB_ENV
+            echo "TARGET_DATE=${{ github.event.inputs.VALUE }}" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Run release summary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ORG_NAME: ${{ vars.ORG_NAME || 'your-org-name' }}
+          NODE_ENV: 'production'
+          LOG_LEVEL: 'info'
+          RELEASE_TIMEFRAME: ${{ github.event.inputs.RELEASE_TIMEFRAME }}
+          HOURS_BACK: ${{ env.HOURS_BACK }}
+          TARGET_DATE: ${{ env.TARGET_DATE }}
+        run: npm start
+
+      - name: Upload logs (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-summary-logs
+          path: logs/
+          retention-days: 7
