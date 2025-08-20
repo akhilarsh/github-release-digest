@@ -1,77 +1,76 @@
-import { SlackClient } from '../clients/slack-client';
-import { ReleaseInfo, SlackMessage } from '../types';
+import { SlackMessage } from '../types';
 import { logger } from '../utils/logger';
-import { formatReleaseMessage, validateReleases, SummaryConfig } from './summary';
-
-interface SlackConfig {
-  releaseMode: 'recent' | 'daily';
-  hoursBack?: number;
-  targetDate?: Date;
-}
 
 /**
- * Validate Slack configuration
+ * Slack integration module for posting GitHub release summaries
+ *
+ * This module handles:
+ * - Configuration validation
+ * - Message formatting and posting
+ * - Error handling and logging
  */
-function validateSlackConfig(config: SlackConfig): void {
-  if (!config) {
-    throw new Error('Slack configuration is required');
-  }
-
-  if (!['recent', 'daily'].includes(config.releaseMode)) {
-    throw new Error(`Invalid release mode: ${config.releaseMode}`);
-  }
-
-  if (config.releaseMode === 'daily' && !config.targetDate) {
-    throw new Error('Target date is required for daily mode');
-  }
-
-  if (config.releaseMode === 'recent' && (!config.hoursBack || config.hoursBack <= 0)) {
-    throw new Error('Valid hoursBack is required for recent mode');
-  }
-}
 
 
 
 /**
- * Post release summary to Slack with comprehensive error handling
+ * Posts a pre-formatted message to Slack
+ *
+ * @param message - Pre-formatted message to send
+ * @param webhookUrl - Slack webhook URL for posting
+ * @throws {Error} When validation fails or Slack API returns an error
  */
 export async function postToSlack(
-  releases: ReleaseInfo[],
-  slackWebhookUrl: string,
-  config: SlackConfig,
-  format: 'detailed' | 'tabular' = 'tabular'
+  message: string,
+  webhookUrl: string
 ): Promise<void> {
   try {
-    if (!slackWebhookUrl || typeof slackWebhookUrl !== 'string') {
-      throw new Error('Valid Slack webhook URL is required');
+    logger.info('Posting summary to Slack...');
+
+    // Validate inputs
+    if (!message || message.trim() === '') {
+      throw new Error('Message is required');
     }
 
-    validateReleases(releases);
-    validateSlackConfig(config);
+    if (!webhookUrl || webhookUrl.trim() === '') {
+      throw new Error('Slack webhook URL is required');
+    }
 
-    logger.info(`Formatting message for Slack in ${format} format...`);
+    const formattedMessage = message;
 
-    // Convert SlackConfig to SummaryConfig
-    const summaryConfig: SummaryConfig = {
-      releaseMode: config.releaseMode,
-      hoursBack: config.hoursBack,
-      targetDate: config.targetDate
+    // Create Slack message payload
+    const slackMessage: SlackMessage = {
+      text: formattedMessage
     };
 
-    // Format the release message (this also logs the formatted summary to console)
-    const formattedMessage = formatReleaseMessage(releases, summaryConfig, format);
+    // Log the exact payload being sent
+    logger.info(`Slack payload length: ${JSON.stringify(slackMessage).length} characters`);
+    logger.info(`Message starts with: ${formattedMessage.substring(0, 100)}...`);
+    logger.info(`Message ends with: ...${formattedMessage.substring(formattedMessage.length - 100)}`);
 
-    // Create Slack message object
-    const slackMessage: SlackMessage = { text: formattedMessage };
+    // Send to Slack
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(slackMessage),
+    });
 
-    // Post to Slack
-    const slackClient = new SlackClient(slackWebhookUrl);
-    await slackClient.postMessage(slackMessage);
+    // Log the full Slack response for debugging
+    logger.info(`📄 Full Slack Response:`);
+    logger.info(`Status: ${response.status} ${response.statusText}`);
+    const responseText = await response.text();
+    logger.info(`Body: ${responseText}`);
 
-    logger.info('Slack message processing completed successfully');
+    if (!response.ok) {
+      logger.error(`Slack API response: ${response.status} ${response.statusText}`);
+      logger.error(`Slack API error body: ${responseText}`);
+      throw new Error(`Slack API error (${response.status}): ${responseText}`);
+    }
+
+    logger.info('Successfully posted to Slack');
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`Failed to post to Slack: ${errorMessage}`);
-    throw new Error(`Slack posting failed: ${errorMessage}`);
+    logger.error(`Error posting to Slack: ${error}`);
+    throw new Error(`Failed to post to Slack: ${error}`);
   }
 }

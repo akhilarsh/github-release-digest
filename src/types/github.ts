@@ -14,6 +14,15 @@ export interface OrganizationResponse {
 }
 
 /**
+ * GitHub GraphQL API response structure for single repository queries
+ */
+export interface SingleRepositoryResponse {
+  organization: {
+    repository: GitHubRepository | null;
+  };
+}
+
+/**
  * GitHub repository structure from GraphQL API
  */
 export interface GitHubRepository {
@@ -56,6 +65,7 @@ export interface ReleaseFetchParams {
   startDate: Date;
   endDate?: Date;
   dateDescription?: string;
+  repositories?: string[]; // Optional: specific repositories to filter
 }
 
 /**

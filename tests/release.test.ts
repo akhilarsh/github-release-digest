@@ -29,7 +29,6 @@ class MockRepository {
   }
 }
 
-// Helper function to create mock release data
 function createMockRelease(overrides: Partial<GitHubRelease> = {}): GitHubRelease {
   return {
     tagName: 'v1.0.0',
@@ -43,7 +42,6 @@ function createMockRelease(overrides: Partial<GitHubRelease> = {}): GitHubReleas
   };
 }
 
-// Helper function to create mock repository data
 function createMockRepository(overrides: Partial<GitHubRepository> = {}): GitHubRepository {
   return {
     name: 'test-repo',
@@ -53,34 +51,28 @@ function createMockRepository(overrides: Partial<GitHubRepository> = {}): GitHub
   };
 }
 
-// Setup and teardown
 let originalRepository: typeof Repository;
 let originalLogger: any;
 
 test.before(() => {
-  // Mock Repository class
   originalRepository = Repository;
   (Repository as any) = MockRepository;
 
-  // Mock logger
   originalLogger = require('../src/utils/logger').logger;
   require('../src/utils/logger').logger = loggerMock;
 });
 
 test.after(() => {
-  // Restore original classes
   (Repository as any) = originalRepository;
   require('../src/utils/logger').logger = originalLogger;
 });
 
-// Test Release constructor
 test('Release constructor should create instance with token', () => {
   const release = new Release('test-token');
   assert.instance(release, Release);
 });
 
-// Test getDailyReleases with default date (today)
-test('getDailyReleases should fetch releases for today when no date provided', async () => {
+test('getReleases should fetch releases for today when date timeframe provided', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
 
@@ -96,14 +88,13 @@ test('getDailyReleases should fetch releases for today when no date provided', a
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
 
   assert.is(releases.length, 1);
   assert.is(releases[0].repository, 'today-repo');
   assert.is(releases[0].tagName, 'v2.0.0');
 });
 
-// Test getDailyReleases with specific date
 test('getDailyReleases should fetch releases for specific date', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
@@ -126,14 +117,13 @@ test('getDailyReleases should fetch releases for specific date', async () => {
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org', targetDate);
+  const releases = await release.getReleases('test-org', { type: 'date', value: targetDate });
 
   assert.is(releases.length, 1);
   assert.is(releases[0].tagName, 'v1.5.0');
 });
 
-// Test getDailyReleases with no releases found
-test('getDailyReleases should return empty array when no releases found', async () => {
+test('getReleases should return empty array when no releases found', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
 
@@ -144,13 +134,12 @@ test('getDailyReleases should return empty array when no releases found', async 
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
 
   assert.is(releases.length, 0);
 });
 
-// Test getRecentReleases with default hours (24)
-test('getRecentReleases should fetch releases from last 24 hours by default', async () => {
+test('getReleases should fetch releases from last 24 hours by default', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
 
@@ -172,14 +161,13 @@ test('getRecentReleases should fetch releases from last 24 hours by default', as
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getRecentReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'hours', value: 24 });
 
   assert.is(releases.length, 1);
   assert.is(releases[0].tagName, 'v3.0.0');
 });
 
-// Test getRecentReleases with custom hours
-test('getRecentReleases should fetch releases from custom hours back', async () => {
+test('getReleases should fetch releases from custom hours back', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
 
@@ -201,13 +189,12 @@ test('getRecentReleases should fetch releases from custom hours back', async () 
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getRecentReleases('test-org', 12);
+  const releases = await release.getReleases('test-org', { type: 'hours', value: 12 });
 
   assert.is(releases.length, 1);
   assert.is(releases[0].tagName, 'v1.1.0');
 });
 
-// Test processRepositories with multiple repositories
 test('processRepositories should process multiple repositories correctly', async () => {
   const release = new Release('test-token');
 
@@ -244,7 +231,6 @@ test('processRepositories should process multiple repositories correctly', async
   assert.is(releases[1].repository, 'repo2');
 });
 
-// Test isReleaseInDateRange method
 test('isReleaseInDateRange should correctly filter releases by date range', () => {
   const release = new Release('test-token');
 
@@ -253,21 +239,18 @@ test('isReleaseInDateRange should correctly filter releases by date range', () =
     endDate: new Date('2024-01-15T23:59:59Z')
   };
 
-  // Release within range
   const inRange = (release as any).isReleaseInDateRange(
     '2024-01-15T12:00:00Z',
     dateRange
   );
   assert.is(inRange, true);
 
-  // Release before range
   const beforeRange = (release as any).isReleaseInDateRange(
     '2024-01-14T12:00:00Z',
     dateRange
   );
   assert.is(beforeRange, false);
 
-  // Release after range
   const afterRange = (release as any).isReleaseInDateRange(
     '2024-01-16T12:00:00Z',
     dateRange
@@ -275,7 +258,6 @@ test('isReleaseInDateRange should correctly filter releases by date range', () =
   assert.is(afterRange, false);
 });
 
-// Test isReleaseInDateRange without endDate
 test('isReleaseInDateRange should work without endDate', () => {
   const release = new Release('test-token');
 
@@ -283,14 +265,12 @@ test('isReleaseInDateRange should work without endDate', () => {
     startDate: new Date('2024-01-15T00:00:00Z')
   };
 
-  // Release after start date (should be valid)
   const afterStart = (release as any).isReleaseInDateRange(
     '2024-01-16T12:00:00Z',
     dateRange
   );
   assert.is(afterStart, true);
 
-  // Release before start date (should be invalid)
   const beforeStart = (release as any).isReleaseInDateRange(
     '2024-01-14T12:00:00Z',
     dateRange
@@ -298,7 +278,6 @@ test('isReleaseInDateRange should work without endDate', () => {
   assert.is(beforeStart, false);
 });
 
-// Test release processing with prerelease filtering
 test('should process both stable releases and prereleases', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
@@ -322,22 +301,20 @@ test('should process both stable releases and prereleases', async () => {
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
 
   assert.is(releases.length, 2);
   assert.is(releases.find(r => r.tagName === 'v1.0.0')?.isPrerelease, false);
   assert.is(releases.find(r => r.tagName === 'v1.1.0-beta.1')?.isPrerelease, true);
 });
 
-// Test release info structure
 test('should create correct ReleaseInfo structure', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
 
-  // Create release that falls within today's date range
   const today = new Date();
   const releaseTime = new Date(today);
-  releaseTime.setUTCHours(10, 30, 0, 0); // Set to 10:30 AM UTC today
+  releaseTime.setUTCHours(10, 30, 0, 0);
 
   const mockRelease = createMockRelease({
     tagName: 'v1.2.3',
@@ -356,7 +333,7 @@ test('should create correct ReleaseInfo structure', async () => {
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
 
   assert.is(releases.length, 1);
   const releaseInfo = releases[0];
@@ -371,7 +348,6 @@ test('should create correct ReleaseInfo structure', async () => {
   assert.is(releaseInfo.isPrerelease, false);
 });
 
-// Test release with null name (should use tagName)
 test('should use tagName when release name is null', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
@@ -389,13 +365,12 @@ test('should use tagName when release name is null', async () => {
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
 
   assert.is(releases.length, 1);
   assert.is(releases[0].name, 'v1.0.0'); // Should fallback to tagName
 });
 
-// Test release with null description (should use empty string)
 test('should use empty string when release description is null', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
@@ -413,24 +388,22 @@ test('should use empty string when release description is null', async () => {
 
   mockRepo.setMockRepositories([mockRepoData]);
 
-  const releases = await release.getDailyReleases('test-org');
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
 
   assert.is(releases.length, 1);
   assert.is(releases[0].description, ''); // Should fallback to empty string
 });
 
-// Test error handling in fetchReleases
 test('should throw error when repository fetching fails', async () => {
   const release = new Release('test-token');
   const mockRepo = (release as any).repository as MockRepository;
 
-  // Mock repository to throw error
   mockRepo.fetchAllRepositories = async () => {
     throw new Error('GitHub API error');
   };
 
   try {
-    await release.getDailyReleases('test-org');
+    await release.getReleases('test-org', { type: 'date', value: new Date() });
     assert.unreachable('Should have thrown error');
   } catch (error) {
     assert.instance(error, Error);
@@ -438,42 +411,20 @@ test('should throw error when repository fetching fails', async () => {
   }
 });
 
-// Test logReleaseResults method (private method execution)
-test('logReleaseResults should execute without errors', () => {
+test('should handle empty releases array', async () => {
   const release = new Release('test-token');
+  const mockRepo = (release as any).repository as MockRepository;
 
-  const releases: ReleaseInfo[] = [
-    {
-      repository: 'repo1',
-      tagName: 'v1.0.0',
-      name: 'Release 1.0.0',
-      publishedAt: '2024-01-15T10:00:00Z',
-      description: 'Test release',
-      url: 'https://github.com/org/repo1/releases/tag/v1.0.0',
-      author: 'user1',
-      isPrerelease: false
-    },
-    {
-      repository: 'repo2',
-      tagName: 'v2.0.0-beta.1',
-      name: 'Release 2.0.0 Beta',
-      publishedAt: '2024-01-15T11:00:00Z',
-      description: 'Beta release',
-      url: 'https://github.com/org/repo2/releases/tag/v2.0.0-beta.1',
-      author: 'user2',
-      isPrerelease: true
-    }
-  ];
-
-  // Call the private method - should not throw any errors
-  assert.not.throws(() => {
-    (release as any).logReleaseResults(releases, 'test period');
+  const mockRepoData = createMockRepository({
+    name: 'empty-repo',
+    releases: { nodes: [] }
   });
 
-  // Test with empty releases array
-  assert.not.throws(() => {
-    (release as any).logReleaseResults([], 'empty test period');
-  });
+  mockRepo.setMockRepositories([mockRepoData]);
+
+  const releases = await release.getReleases('test-org', { type: 'date', value: new Date() });
+
+  assert.is(releases.length, 0);
 });
 
 test.run();

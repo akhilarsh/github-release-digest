@@ -6,7 +6,6 @@ import { OrganizationResponse, RepositoryQueryVariables } from '../src/types';
 test('GitHubGraphQLClient › constructor › should initialize with token and default graphql client', () => {
   const client = new GitHubGraphQLClient('test-token');
 
-  // Should not throw an error and should be properly initialized
   assert.type(client.getQuery(), 'string');
 });
 
@@ -14,7 +13,6 @@ test('GitHubGraphQLClient › constructor › should accept custom graphql funct
   const mockGraphql = async () => ({ test: 'response' });
   const client = new GitHubGraphQLClient('test-token', mockGraphql);
 
-  // Should not throw an error and should be properly initialized
   assert.type(client.getQuery(), 'string');
 });
 
@@ -25,7 +23,7 @@ test('GitHubGraphQLClient › getQuery › should return the GraphQL query strin
   assert.type(query, 'string');
   assert.ok(query.includes('organization(login: $orgName)'));
   assert.ok(query.includes('repositories(first: $first, after: $after'));
-  assert.ok(query.includes('releases(first: 1'));
+  assert.ok(query.includes('releases(first: 10'));
   assert.ok(query.includes('pageInfo'));
   assert.ok(query.includes('hasNextPage'));
   assert.ok(query.includes('endCursor'));
@@ -57,7 +55,6 @@ test('GitHubGraphQLClient › fetchRepositoriesPage › should call graphql with
 
   await client.fetchRepositoriesPage(variables);
 
-  // Verify the graphql function was called with correct parameters
   assert.equal((calledWith as any).variables, variables);
   assert.type((calledWith as any).query, 'string');
   assert.ok((calledWith as any).query.includes('organization(login: $orgName)'));
@@ -232,7 +229,7 @@ test('GitHubGraphQLClient › fetchRepositoriesPage › should propagate GraphQL
     assert.unreachable('should have thrown an error');
   } catch (error: any) {
     assert.instance(error, Error);
-    assert.match(error.message, 'GraphQL API Error: Bad credentials');
+    assert.ok(error.message.includes('GraphQL API Error: Bad credentials'));
   }
 });
 

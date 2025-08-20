@@ -1,37 +1,106 @@
+# Release Digest Workflow
+#
+# This workflow generates release summaries and sends them to Slack.
+# Data is fetched from Snowflake (preferred) with GitHub API fallback.
+#
+# Triggers:
+# - Manual: via workflow_dispatch with customizable parameters
+#
+# Required Secrets:
+# - TOKEN_GITHUB: GitHub PAT with org read access
+# - SLACK_WEBHOOK_URL: Slack webhook for posting messages
+# - ANTHROPIC_API_KEY: (Optional) Primary AI provider for summarization
+# - OPENROUTER_API_KEY: (Optional) Fallback AI provider for summarization
+# - SNOWFLAKE_CONFIG: JSON string with Snowflake connection details
+#
+# Required Variables:
+# - ORG_NAME: GitHub organization name
+#
+# Snowflake Configuration:
+# SNOWFLAKE_CONFIG: JSON string with all connection details (recommended for GitHub Actions)
+# Required fields: account, username, password (or privateKey), database
+# Optional fields: schema, warehouse, role, authenticator
+#
+# Example:
+# {
+#   "account": "your-account",
+#   "username": "user",
+#   "password": "pass",
+#   "database": "db",
+#   "schema": "schema",
+#   "warehouse": "wh"
+# }
+#
+# Note: For local development, individual SNOWFLAKE_* env vars take precedence over JSON config
+#
+
 name: Release Digest
+run-name: "Release Digest - (timeframe: ${{ github.event_name == 'schedule' && '7 days' || format('{0} {1}', github.event.inputs.VALUE, github.event.inputs.TIMEFRAME_TYPE) }}, ${{ github.event_name == 'schedule' && 'scheduled' || 'manual' }})"
 
 on:
   workflow_dispatch:
     inputs:
-      RELEASE_TIMEFRAME:
-        description: 'Release timeframe'
+      TIMEFRAME_TYPE:
+        description: 'Timeframe for release summary'
         required: true
-        default: 'recent'
+        default: 'days'
         type: choice
         options:
-          - recent
-          - daily
+          - hours
+          - days
+          - date
       VALUE:
         description: |
-          For 'recent', enter hours to look back (e.g. 24).
-          For 'daily', enter the target date (YYYY-MM-DD, today, or yesterday).
+          For 'hours', enter hours to look back (e.g. 6).
+          For 'days', enter days to look back (e.g. 7).
+          For 'date', enter the target date (YYYY-MM-DD).
         required: true
-        default: '24'
+        default: '7'
+      REPOSITORIES:
+        description: 'Comma-separated list of repositories to filter (optional)'
+        required: false
+        default: ''
+      INCLUDE_DESCRIPTIONS:
+        description: 'Include detailed descriptions in the summary'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 
 jobs:
   release-summary:
+    name: "Release Digest - (timeframe: ${{ github.event_name == 'schedule' && '7 days' || format('{0} {1}', github.event.inputs.VALUE, github.event.inputs.TIMEFRAME_TYPE) }}, ${{ github.event_name == 'schedule' && 'scheduled' || 'manual' }})"
     runs-on: ubuntu-latest
-    name: "Release Digest (${{ github.event.inputs.RELEASE_TIMEFRAME }}: ${{ github.event.inputs.VALUE }})"
+    # Restrictive permissions by default; elevate only if needed
+    permissions:
+      contents: read
+    # Avoid overlapping runs on the same ref
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Log workflow trigger
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "🕐 Scheduled workflow triggered at $(date)"
+            echo "📅 Running weekly release digest for the past 7 days"
+          else
+            echo "👤 Manual workflow triggered by ${{ github.actor }}"
+            echo "📊 Timeframe: ${{ github.event.inputs.TIMEFRAME_TYPE }}: ${{ github.event.inputs.VALUE }}"
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -40,44 +109,34 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Validate required variables and set env
+      - name: Setup environment variables
         id: setenv
+        env:
+          # Pass secrets to the script
+          TOKEN_GITHUB: ${{ secrets.TOKEN_GITHUB }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SNOWFLAKE_CONFIG: ${{ secrets.SNOWFLAKE_CONFIG }}
+          ORG_NAME: ${{ vars.ORG_NAME }}
+
+
+          INPUT_TIMEFRAME_TYPE: ${{ github.event.inputs.TIMEFRAME_TYPE }}
+          INPUT_VALUE: ${{ github.event.inputs.VALUE }}
+          INPUT_REPOSITORIES: ${{ github.event.inputs.REPOSITORIES }}
+          INPUT_INCLUDE_DESCRIPTIONS: ${{ github.event.inputs.INCLUDE_DESCRIPTIONS }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          NODE_ENV: production
+          LOG_LEVEL: info
         run: |
-          if [ -z "${{ vars.ORG_NAME }}" ]; then
-            echo "Error: ORG_NAME variable is not set"
-            exit 1
-          fi
-          if [ "${{ github.event.inputs.RELEASE_TIMEFRAME }}" = "recent" ]; then
-            if ! [[ "${{ github.event.inputs.VALUE }}" =~ ^[0-9]+$ ]]; then
-              echo "For 'recent' timeframe, VALUE must be a number (hours back)."
-              exit 1
-            fi
-            echo "HOURS_BACK=${{ github.event.inputs.VALUE }}" >> $GITHUB_ENV
-            echo "TARGET_DATE=" >> $GITHUB_ENV
-          elif [ "${{ github.event.inputs.RELEASE_TIMEFRAME }}" = "daily" ]; then
-            if [ -z "${{ github.event.inputs.VALUE }}" ]; then
-              echo "For 'daily' timeframe, VALUE must be a date (YYYY-MM-DD, today, or yesterday)."
-              exit 1
-            fi
-            echo "HOURS_BACK=" >> $GITHUB_ENV
-            echo "TARGET_DATE=${{ github.event.inputs.VALUE }}" >> $GITHUB_ENV
-          fi
-        shell: bash
+          chmod +x scripts/creat-env.sh
+          ./scripts/creat-env.sh
 
       - name: Run release summary
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          ORG_NAME: ${{ vars.ORG_NAME || 'your-org-name' }}
-          NODE_ENV: 'production'
-          LOG_LEVEL: 'info'
-          RELEASE_TIMEFRAME: ${{ github.event.inputs.RELEASE_TIMEFRAME }}
-          HOURS_BACK: ${{ env.HOURS_BACK }}
-          TARGET_DATE: ${{ env.TARGET_DATE }}
-        run: npm start
+        env: {}
+        run: npm start -- ${{ env.CLI_ARGS }}
 
-      - name: Upload logs (if failed)
-        if: failure()
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
           name: release-summary-logs

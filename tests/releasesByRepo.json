@@ -1,0 +1,107 @@
+[
+  [
+    "project-alpha",
+    [
+      {
+        "repository": "project-alpha",
+        "tagName": "v1.41.0",
+        "name": "v1.41.0",
+        "publishedAt": "2025-07-28T08:12:34Z",
+        "description": "This release includes several enhancements to improve user experience and expand destination capabilities. The Slack destination configuration interface has been improved with clearer UI elements and better placeholder text for easier setup. New deployment workflows have been added, including a manual deploy option with verbose logging and enhanced production deployment validation to ensure safer releases. Additionally, support for a new custom device mode destination has been onboarded, and Comscore now includes JavaScript device mode configuration options.",
+        "url": "https://example.com/releases/tag/v1.41.0",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      }
+    ]
+  ],
+  [
+    "project-beta",
+    [
+      {
+        "repository": "project-beta",
+        "tagName": "v3.165.0",
+        "name": "v3.165.0",
+        "publishedAt": "2025-07-25T08:10:17Z",
+        "description": "This release focuses on improving account management and permissions functionality. Key improvements include enhanced account list cache updates after re-authentication completion, better access management route loading, and improved profile list handling based on feature flags. The release also introduces a new event blocking page boilerplate and adds support for custom device mode destination icons. Plan-based constraints have been implemented for invitations, groups limits, and route access, along with improved PII section rendering based on plan support.",
+        "url": "https://example.com/releases/tag/v3.165.0",
+        "author": "jane-smith",
+        "isPrerelease": false
+      }
+    ]
+  ],
+  [
+    "project-gamma",
+    [
+      {
+        "repository": "project-gamma",
+        "tagName": "v2.61.0",
+        "name": "v2.61.0",
+        "publishedAt": "2025-07-28T05:13:32Z",
+        "description": "This release introduces enhanced monitoring capabilities with improved PromQL validation in GitHub Actions workflows. The release includes better error handling and logging for PromQL validation failures, along with support for dummy configurations and proxy management improvements. Additional enhancements include warehouse master deployment optimization for critical nodes and various infrastructure improvements for better reliability and performance.",
+        "url": "https://example.com/releases/tag/v2.61.0",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      },
+      {
+        "repository": "project-gamma",
+        "tagName": "v2.60.7",
+        "name": "v2.60.7",
+        "publishedAt": "2025-07-25T11:49:27Z",
+        "description": "This release includes comprehensive bug fixes and performance improvements across multiple components. Key fixes include PromQL syntax corrections for processor database pool alerts, improved readiness probe timing for ingestion services, and enhanced enterprise worker configurations. The release also introduces new Python high transformation output error alerts, improved labeling for various components, and optimized configurations for multiple cloud destinations including Braze, Mixpanel, and Iterable.",
+        "url": "https://example.com/releases/tag/v2.60.7",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      }
+    ]
+  ],
+  [
+    "project-delta",
+    [
+      {
+        "repository": "project-delta",
+        "tagName": "v1.55.2",
+        "name": "v1.55.2",
+        "publishedAt": "2025-07-24T13:42:11Z",
+        "description": "This release addresses critical timeout issues in the router component. The main fix resolves a problem where timeout values were not properly resetting when no jobs were available, which could lead to performance degradation and resource utilization issues. This improvement ensures more reliable job processing and better system responsiveness under varying load conditions.",
+        "url": "https://example.com/releases/tag/v1.55.2",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      },
+      {
+        "repository": "project-delta",
+        "tagName": "v1.55.1",
+        "name": "v1.55.1",
+        "publishedAt": "2025-07-24T11:43:57Z",
+        "description": "This release fixes a critical issue in the router worker's batch timeout handling. The problem was that worker batch timeouts were being reset after new job arrivals, which could cause inconsistent behavior and potential job processing delays. This fix ensures that timeout values are properly maintained and jobs are processed with consistent timing expectations.",
+        "url": "https://example.com/releases/tag/v1.55.1",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      }
+    ]
+  ],
+  [
+    "project-epsilon",
+    [
+      {
+        "repository": "project-epsilon",
+        "tagName": "v1.6.1",
+        "name": "v1.6.1",
+        "publishedAt": "2025-07-25T14:06:32Z",
+        "description": "This release includes a minor fix for the Snyk scan functionality. The update improves the reliability and accuracy of security scanning during the build process, ensuring that potential vulnerabilities are properly identified and reported. This enhancement helps maintain high security standards across the build pipeline.",
+        "url": "https://example.com/releases/tag/v1.6.1",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      },
+      {
+        "repository": "project-epsilon",
+        "tagName": "v1.6.0",
+        "name": "v1.6.0",
+        "publishedAt": "2025-07-24T17:54:38Z",
+        "description": "This release introduces Snyk scan integration to the build-scan-push action, providing enhanced security scanning capabilities. The update also includes dependency updates for sigstore/cosign-installer from version 3.8.0 to 3.8.1, ensuring the latest security features and bug fixes are available. These improvements enhance the overall security posture of the build pipeline.",
+        "url": "https://example.com/releases/tag/v1.6.0",
+        "author": "sarah-jones",
+        "isPrerelease": false
+      }
+    ]
+  ]
+]

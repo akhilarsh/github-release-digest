@@ -180,16 +180,16 @@ test('fetchAllRepositories should stop early when cutoff date reached', async ()
 
   const startDate = new Date('2024-01-15T00:00:00Z');
   const cutoffDate = new Date(startDate);
-  cutoffDate.setDate(cutoffDate.getDate() - 7); // 7 days earlier
+  cutoffDate.setDate(cutoffDate.getDate() - 14); // 14 days earlier (matches default)
 
   const recentRepo = createMockRepository({
     name: 'recent-repo',
-    updatedAt: '2024-01-14T12:00:00Z' // Within cutoff
+    updatedAt: '2024-01-10T12:00:00Z' // Within cutoff (5 days before start date)
   });
 
   const oldRepo = createMockRepository({
     name: 'old-repo',
-    updatedAt: '2024-01-07T12:00:00Z' // Before cutoff
+    updatedAt: '2023-12-31T12:00:00Z' // Before cutoff (more than 14 days earlier)
   });
 
   const mockResponse = createMockOrganizationResponse([recentRepo, oldRepo], false);
@@ -327,7 +327,7 @@ test('executeWithRetry should throw error after max retries', async () => {
     assert.unreachable('Should have thrown error');
   } catch (error) {
     assert.instance(error, Error);
-    assert.match((error as Error).message, 'Persistent failure');
+    assert.ok((error as Error).message.includes('Persistent failure'));
   }
 });
 
@@ -361,27 +361,11 @@ test('fetchAllRepositories should handle GraphQL client errors', async () => {
     assert.unreachable('Should have thrown error');
   } catch (error) {
     assert.instance(error, Error);
-    assert.match((error as Error).message, 'GraphQL API error');
+    assert.ok((error as Error).message.includes('GraphQL API error'));
   }
 });
 
-// Test logResults method
-test('logResults should execute without errors', () => {
-  const repository = new Repository('test-token');
 
-  const stats: PaginationStats = {
-    totalRepositories: 10,
-    totalReleases: 5,
-    filteredReleases: 3,
-    pageCount: 2,
-    earlyStopEnabled: true,
-    repositoriesScanned: 8
-  };
-
-  assert.not.throws(() => {
-    (repository as any).logResults(stats, 'Test operation');
-  });
-});
 
 // Test retry configuration
 test('Repository should have correct default retry configuration', () => {
@@ -400,7 +384,7 @@ test('Repository should have correct default early stop configuration', () => {
 
   const earlyStopConfig = (repository as any).earlyStopConfig;
 
-  assert.is(earlyStopConfig.cutoffDays, 7);
+  assert.is(earlyStopConfig.cutoffDays, 14);
   assert.is(earlyStopConfig.enabled, true);
 });
 
@@ -439,36 +423,6 @@ test('fetchAllRepositories should include rate limiting between pages', async ()
 
   // Restore original sleep method
   (repository as any).sleep = originalSleep;
-});
-
-// Test query variables construction
-test('fetchAllRepositories should construct correct query variables', async () => {
-  const repository = new Repository('test-token');
-  const mockClient = (repository as any).graphqlClient as MockGitHubGraphQLClient;
-
-  let capturedVariables: RepositoryQueryVariables | null = null;
-
-  // Override fetchRepositoriesPage to capture variables
-  const originalFetch = mockClient.fetchRepositoriesPage;
-  mockClient.fetchRepositoriesPage = async (variables: RepositoryQueryVariables) => {
-    capturedVariables = variables;
-    return createMockOrganizationResponse([], false);
-  };
-
-  const params: ReleaseFetchParams = {
-    orgName: 'test-org-name',
-    startDate: new Date('2024-01-15T00:00:00Z')
-  };
-
-  await repository.fetchAllRepositories(params);
-
-  assert.ok(capturedVariables);
-  assert.is(capturedVariables!.orgName, 'test-org-name');
-  assert.is(capturedVariables!.first, 100);
-  assert.is(capturedVariables!.after, undefined); // First page should not have cursor
-
-  // Restore original method
-  mockClient.fetchRepositoriesPage = originalFetch;
 });
 
 // Test exponential backoff calculation

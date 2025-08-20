@@ -1,14 +1,15 @@
-import { setFailed } from '@actions/core';
 import { config as dotenvConfig } from 'dotenv';
+import { setFailed } from '@actions/core';
 import { Release } from './core/release';
 import { postToSlack } from './core/slack';
-import { ReleaseInfo } from './types';
+import { formatReleaseMessage, generateTimeframeText } from './core/format';
 import { logger } from './utils/logger';
-import { getConfig, Config } from './utils/config';
+import { getConfig } from './utils/config';
 import { setupProcessHandlers } from './utils/process-handlers';
 import { processCli } from './utils/cli';
 
-dotenvConfig({ debug: false });
+// Load environment variables from .env file
+dotenvConfig();
 setupProcessHandlers();
 
 /**
@@ -23,47 +24,40 @@ async function main(): Promise<void> {
 
     const config = getConfig();
 
-    // Set log file name using release mode as prefix
-    logger.updateContext(config.releaseMode);
-    const releases = await runReleaseSummary(config);
+    // Validate critical configuration
+    if (!config.githubToken || !config.slackWebhookUrl || !config.orgName) {
+      throw new Error('Missing required configuration: githubToken, slackWebhookUrl, or orgName');
+    }
 
-    // Prepare Slack configuration
-    const slackConfig = {
-      releaseMode: config.releaseMode,
-      hoursBack: config.hoursBack,
-      targetDate: config.targetDate
-    };
+    // Set log file name using timeframe as prefix
+    const timeframeText = generateTimeframeText(config.timeframe);
+    logger.updateContext(timeframeText);
 
-    await postToSlack(releases, config.slackWebhookUrl, slackConfig, 'tabular');
+    // Step 1: Get all release data
+    const release = new Release(config.githubToken);
+    const releases = await release.getReleases(config);
+
+    // Step 2: Format releases into separate Slack messages
+    const slackMessages = await formatReleaseMessage(releases, {
+      timeframe: config.timeframe,
+      includeDescriptions: config.includeDescriptions
+    }, config.repositories);
+
+    // Step 3: Send each formatted message to Slack
+    for (const message of slackMessages) {
+      await postToSlack(message, config.slackWebhookUrl);
+    }
 
     logger.info('Release summary service completed successfully');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
     logger.error(`Release summary service failed: ${errorMessage}`);
-    setFailed(`Release summary service failed: ${errorMessage}`);
-  }
-}
-
-/**
- * Fetch releases from GitHub based on configuration mode
- */
-async function runReleaseSummary(config: Config): Promise<ReleaseInfo[]> {
-  try {
-    const release = new Release(config.githubToken);
-    let releases: ReleaseInfo[];
-
-    if (config.releaseMode === 'daily') {
-      releases = await release.getDailyReleases(config.orgName, config.targetDate);
-    } else {
-      releases = await release.getRecentReleases(config.orgName, config.hoursBack);
+    if (errorStack) {
+      logger.error(`Stack trace: ${errorStack}`);
     }
-    logger.info(`Release Summary: ${JSON.stringify(releases, null, 2)}`);
-    return releases;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`Failed to fetch releases: ${errorMessage}`);
-    setFailed(`Failed to fetch releases: ${errorMessage}`);
-    throw error;
+    setFailed(`Release summary service failed: ${errorMessage}`);
   }
 }
 
@@ -71,6 +65,17 @@ if (require.main === module) {
   main().catch((error) => {
     logger.error(`Fatal error in main: ${error}`);
     process.exit(1);
+  });
+
+  // Handle graceful shutdown
+  process.on('SIGINT', () => {
+    logger.info('Received SIGINT, shutting down gracefully...');
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    logger.info('Received SIGTERM, shutting down gracefully...');
+    process.exit(0);
   });
 }
 

@@ -2,10 +2,25 @@ import {
   ReleaseInfo,
   GitHubRepository,
   ReleaseFetchParams,
-  PaginationStats
 } from '../types';
 import { logger } from '../utils/logger';
 import { Repository } from './repository';
+
+import { fetchReleasesFromSnowflake } from './snowflake-releases';
+
+// Type definitions for date range calculations
+type DateRangeResult = {
+  startDate: Date;
+  endDate: Date;
+  description: string;
+};
+
+type Timeframe = {
+  type: 'hours' | 'days' | 'date';
+  value: number | Date;
+  startDate?: Date;
+  endDate?: Date;
+};
 
 /**
  * Release service handling release-related operations
@@ -19,78 +34,86 @@ export class Release {
   }
 
   /**
-   * Fetches releases from a specific day
-   * @param orgName - GitHub organization name
-   * @param targetDate - Target date (defaults to today)
+   * Fetches releases based on configuration
+   * @param config - Application configuration containing orgName, timeframe, repositories, snowflake config, etc.
    * @returns Promise<ReleaseInfo[]> - Array of release information
    */
-  async getDailyReleases(orgName: string, targetDate?: Date): Promise<ReleaseInfo[]> {
-    // Use provided date or default to today
-    const date = targetDate || new Date();
+  async getReleases(config: any): Promise<ReleaseInfo[]> {
+    const { orgName, timeframe, repositories, snowflake: snowflakeConfig } = config;
+    const { startDate, endDate } = this.calculateDateRange(timeframe);
+    let releases: ReleaseInfo[] = [];
 
-    // Calculate start and end of the target day (UTC)
-    const startOfDay = new Date(date);
-    startOfDay.setUTCHours(0, 0, 0, 0);
+    this.validateDateRange(startDate, endDate);
 
-    const endOfDay = new Date(date);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    logger.info(`Fetching releases for organization: ${orgName}`);
+    logger.info(`Timeframe: ${timeframe.type} = ${timeframe.value}`);
+    logger.info(`Time range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
-    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-    logger.info(`Fetching daily releases for organization: ${orgName}`);
-    logger.info(`Target date: ${dateStr} (UTC)`);
-    logger.info(`Date range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
-
-    return this.fetchReleases({
-      orgName,
-      startDate: startOfDay,
-      endDate: endOfDay,
-      dateDescription: `on ${dateStr}`
-    });
-  }
-
-  /**
-   * Fetches releases from the last N hours
-   * @param orgName - GitHub organization name
-   * @param hoursBack - Number of hours to look back (default: 24)
-   * @returns Promise<ReleaseInfo[]> - Array of release information
-   */
-  async getRecentReleases(orgName: string, hoursBack: number = 24): Promise<ReleaseInfo[]> {
-    const now = new Date();
-    const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000);
-
-    logger.info(`Fetching releases from the last ${hoursBack} hours for organization: ${orgName}`);
-    logger.info(`Time range: ${startTime.toISOString()} to ${now.toISOString()}`);
-
-    return this.fetchReleases({
-      orgName,
-      startDate: startTime,
-      endDate: now,
-      dateDescription: `in the last ${hoursBack} hours`
-    });
-  }
-
-  /**
-   * Fetch and process releases from repositories
-   */
-  private async fetchReleases(params: ReleaseFetchParams): Promise<ReleaseInfo[]> {
-    const { startDate, endDate, dateDescription } = params;
+    if (repositories && repositories.length > 0) {
+      logger.info(`Repository filter: ${repositories.join(', ')}`);
+    }
 
     try {
-      // Fetch repositories using Repository service
-      const repositories = await this.repository.fetchAllRepositories(params);
+      if (!snowflakeConfig) {
+        throw new Error('No Snowflake configuration found');
+      }
+      logger.info('Using Snowflake to fetch releases...');
+      releases = await fetchReleasesFromSnowflake(config, startDate, endDate);
+    } catch (error) {
+      logger.error('Snowflake fetch failed, falling back to GitHub API:', error);
+
+      // Fallback to GitHub API
+      // releases = await this.fetchReleases({
+      //   orgName,
+      //   startDate,
+      //   endDate,
+      //   repositories
+      // });
+    }
+    return releases;
+  }
+
+  /**
+ * Fetch and process releases from repositories
+ */
+  private async fetchReleases(params: ReleaseFetchParams): Promise<ReleaseInfo[]> {
+    const { orgName, startDate, endDate, repositories } = params;
+
+    try {
+      let repositoriesToProcess: GitHubRepository[];
+
+      // Use efficient single repository fetching if specific repositories are requested
+      if (repositories && repositories.length > 0) {
+        logger.info(`🎯 Using efficient single repository fetching for: ${repositories.join(', ')}`);
+        repositoriesToProcess = await this.repository.fetchSpecificRepositories(orgName, repositories);
+      } else {
+        // Fetch all repositories using pagination (existing behavior)
+        logger.info(`📄 Fetching all repositories with pagination...`);
+        repositoriesToProcess = await this.repository.fetchAllRepositories(params);
+      }
 
       // Process releases from the repositories
       const releases = this.processRepositories(
-        repositories,
+        repositoriesToProcess,
         { startDate, endDate }
       );
-
-      this.logReleaseResults(releases, dateDescription || 'specified time range');
       return releases;
 
     } catch (error) {
-      logger.error(`Release fetching failed: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      logger.error(`Release fetching failed: ${errorMessage}`);
+      if (errorStack) {
+        logger.error(`Release fetching stack trace: ${errorStack}`);
+      }
+
+      // Log additional context for debugging
+      logger.error(`Release fetching context - Organization: ${orgName}, Date Range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+      if (repositories && repositories.length > 0) {
+        logger.error(`Release fetching context - Requested repositories: ${repositories.join(', ')}`);
+      }
+
       throw error;
     }
   }
@@ -153,20 +176,91 @@ export class Release {
     return true;
   }
 
-  /**
-   * Log release processing results
-   */
-  private logReleaseResults(releases: ReleaseInfo[], description: string): void {
-    logger.info(`🎯 Release Processing Results:`);
-
-    if (releases.length > 0) {
-      const prereleases = releases.filter(r => r.isPrerelease).length;
-      const stableReleases = releases.length - prereleases;
-      const uniqueRepos = new Set(releases.map(r => r.repository)).size;
-
-      logger.info(`   • Stable releases: ${stableReleases}`);
-      logger.info(`   • Pre-releases: ${prereleases}`);
-      logger.info(`   • Repositories with releases: ${uniqueRepos}`);
+  private validateDateRange(startDate: Date, endDate: Date): void {
+    if (startDate > endDate) {
+      throw new Error('Start date cannot be after end date');
     }
+
+    if (startDate > new Date()) {
+      throw new Error('Start date cannot be in the future');
+    }
+
+    // Guard against windows exceeding 7 days inclusive
+    const msInDay = 24 * 60 * 60 * 1000;
+    const startMidnight = new Date(startDate);
+    startMidnight.setUTCHours(0, 0, 0, 0);
+    const endMidnight = new Date(endDate);
+    endMidnight.setUTCHours(0, 0, 0, 0);
+    const inclusiveDays = Math.floor((endMidnight.getTime() - startMidnight.getTime()) / msInDay) + 1;
+    if (inclusiveDays > 7) {
+      throw new Error(`Date range exceeds 7 days: ${inclusiveDays} days`);
+    }
+  }
+
+  private calculateDateRange(timeframe: Timeframe): DateRangeResult {
+    const now = new Date();
+
+    // If explicit start and end dates are provided, use them
+    if (timeframe.startDate && timeframe.endDate) {
+      return this.calculateDateRangeFromStartEnd(timeframe.startDate, timeframe.endDate);
+    }
+
+    switch (timeframe.type) {
+      case 'date':
+        return this.calculateDateRangeForDate(timeframe.value as Date);
+      case 'days': {
+        const endAnchor = timeframe.endDate ?? now;
+        return this.calculateDateRangeForDays(timeframe.value as number, endAnchor);
+      }
+      case 'hours':
+        return this.calculateDateRangeForHours(timeframe.value as number, now);
+      default:
+        throw new Error(`Unknown timeframe type: ${timeframe.type}`);
+    }
+  }
+
+  private calculateDateRangeForDate(targetDate: Date): DateRangeResult {
+    const startDate = new Date(targetDate);
+    startDate.setUTCHours(0, 0, 0, 0);
+
+    const endDate = new Date(targetDate);
+    endDate.setUTCHours(23, 59, 59, 999);
+
+    const dateStr = targetDate.toISOString().split('T')[0];
+    return { startDate, endDate, description: `on ${dateStr}` };
+  }
+
+  private calculateDateRangeForDays(daysBack: number, endAt: Date): DateRangeResult {
+    const endDate = new Date(endAt);
+    endDate.setUTCHours(23, 59, 59, 999);
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(endDate.getUTCDate() - (daysBack - 1));
+    startDate.setUTCHours(0, 0, 0, 0);
+    return { startDate, endDate, description: `in the last ${daysBack} days` };
+  }
+
+  private calculateDateRangeForHours(hoursBack: number, now: Date): DateRangeResult {
+    const startDate = new Date(now.getTime() - hoursBack * 60 * 60 * 1000);
+    const endDate = new Date(now);
+    return { startDate, endDate, description: `in the last ${hoursBack} hours` };
+  }
+
+  private calculateDateRangeFromStartEnd(start: Date, end: Date): DateRangeResult {
+    const startDate = new Date(start);
+    startDate.setUTCHours(0, 0, 0, 0);
+
+    const endDate = new Date(end);
+    endDate.setUTCHours(23, 59, 59, 999);
+
+    const msInDay = 24 * 60 * 60 * 1000;
+    const startMidnight = new Date(startDate);
+    const endMidnight = new Date(endDate);
+    const inclusiveDays = Math.floor((endMidnight.getTime() - startMidnight.getTime()) / msInDay) + 1;
+    if (inclusiveDays > 7) {
+      throw new Error(`Date range too large: ${inclusiveDays} days. Maximum allowed is 7 days.`);
+    }
+
+    const description = `from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`;
+    return { startDate, endDate, description };
   }
 }

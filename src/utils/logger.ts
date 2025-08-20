@@ -1,5 +1,5 @@
 import filenamify from 'filenamify';
-import fs from 'fs';
+import * as fs from 'fs';
 import { pino } from 'pino';
 
 const LOGS_FOLDER = 'logs';
@@ -23,11 +23,8 @@ function createLogDirectory() {
 
 class Logger {
   logger: pino.Logger;
-  context_name: string;
 
-  constructor() {
-    // Don't create logger until context is set
-  }
+  context_name: string;
 
   updateLogger() {
     const logFileName = this.context_name || 'application';
@@ -51,7 +48,7 @@ class Logger {
           },
         ],
       },
-      redact: redact,
+      redact,
     });
     this.logger.level = 'trace';
   }
@@ -69,7 +66,7 @@ class Logger {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const seconds = String(now.getSeconds()).padStart(2, '0');
-    const timestamp = `${month}-${day}-${year}::${hours}-${minutes}-${seconds}`;
+    const timestamp = `${month}-${day}-${year}-${hours}-${minutes}-${seconds}`;
 
     this.context_name = name ? `${name}-${timestamp}` : `run-${timestamp}`;
     this.updateLogger();

@@ -6,6 +6,7 @@ type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 export class SlackClient {
   private webhookUrl: string;
+
   private fetch: Fetch;
 
   constructor(webhookUrl: string, fetchFn: Fetch = fetch) {

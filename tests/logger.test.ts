@@ -81,17 +81,12 @@ test('frame › should create a framed text with minimum 80 stars', () => {
   assert.ok(result.includes('Hello'));
   assert.ok(result.includes('*'));
 
-  // Should start with newline
   assert.ok(result.startsWith('\n'));
-  // Should NOT end with newline (ends with the border)
   assert.ok(!result.endsWith('\n'));
 
-  // Should contain the text with proper framing
   const lines = result.split('\n');
-  assert.ok(lines.length >= 4); // At least 4 lines: empty, top border, content, bottom border
+  assert.ok(lines.length >= 4);
 
-  // The border should be at least 84 characters (80 + 4)
-  // Format is "* " + stars, so we check the line that contains only stars
   const borderLines = lines.filter(line => line.startsWith('* ') && line.includes('*'.repeat(10)));
   assert.ok(borderLines.length >= 1);
   assert.ok(borderLines[0].length >= 84); // 80 + 4 minimum
@@ -113,7 +108,6 @@ test('frame › should adjust border length based on longest line', () => {
   const shortResult = frame(shortText);
   const longResult = frame(longText);
 
-  // Long text should have longer border
   const shortBorderLength = shortResult.split('\n')[1].length;
   const longBorderLength = longResult.split('\n')[1].length;
 
@@ -142,11 +136,9 @@ test('Logger › should create new Logger instance', () => {
 });
 
 test('Logger › updateContext › should generate context name with timestamp', () => {
-  // Get a fresh logger instance for testing
   delete require.cache[require.resolve('../src/utils/logger')];
   const { logger } = require('../src/utils/logger');
 
-  // Mock the updateLogger method to prevent file creation
   const originalUpdateLogger = logger.updateLogger;
   logger.updateLogger = () => {
     // Don't create actual logger to prevent file creation
@@ -154,11 +146,9 @@ test('Logger › updateContext › should generate context name with timestamp',
 
   logger.updateContext('test');
 
-  // The context_name should include the timestamp
   assert.ok(logger.context_name);
   assert.ok(logger.context_name.includes('test-'));
 
-  // Should match the pattern: test-MM-DD-YY::HH-MM-SS
   const timestampPattern = /test-\d{2}-\d{2}-\d{2}::\d{2}-\d{2}-\d{2}/;
   assert.ok(timestampPattern.test(logger.context_name));
 
@@ -167,11 +157,9 @@ test('Logger › updateContext › should generate context name with timestamp',
 });
 
 test('Logger › updateContext › should create context without name', () => {
-  // Get a fresh logger instance for testing
   delete require.cache[require.resolve('../src/utils/logger')];
   const { logger } = require('../src/utils/logger');
 
-  // Mock the updateLogger method to prevent file creation
   const originalUpdateLogger = logger.updateLogger;
   logger.updateLogger = () => {
     // Don't create actual logger to prevent file creation
@@ -182,16 +170,13 @@ test('Logger › updateContext › should create context without name', () => {
   assert.ok(logger.context_name);
   assert.ok(logger.context_name.startsWith('run-'));
 
-  // Should match the pattern: run-MM-DD-YY::HH-MM-SS
   const timestampPattern = /run-\d{2}-\d{2}-\d{2}::\d{2}-\d{2}-\d{2}/;
   assert.ok(timestampPattern.test(logger.context_name));
 
-  // Restore original method
   logger.updateLogger = originalUpdateLogger;
 });
 
 test('Logger › info › should use console.log when logger not initialized', () => {
-  // Create a new logger instance without initialization
   class TestLogger {
     logger: any;
     info(...args: any[]) {
@@ -261,7 +246,6 @@ test('Logger › debug › should return early when logger not initialized', () 
   const testLogger = new TestLogger();
   const result = testLogger.debug('debug message');
 
-  // debug should return early and not call console
   assert.equal(result, undefined);
   assert.ok(!mockConsole.log.called);
 });
@@ -282,10 +266,8 @@ test('Logger › child › should return self when logger not initialized', () =
 });
 
 test('createLogDirectory › should check if logs directory exists', () => {
-  // This test verifies the directory creation logic
   mockFs.existsSync.returnValue = true;
 
-  // Re-require the module to trigger createLogDirectory
   delete require.cache[require.resolve('../src/utils/logger')];
   require('../src/utils/logger');
 
@@ -296,7 +278,6 @@ test('createLogDirectory › should check if logs directory exists', () => {
 test('createLogDirectory › should create logs directory if it does not exist', () => {
   mockFs.existsSync.returnValue = false;
 
-  // Re-require the module to trigger createLogDirectory
   delete require.cache[require.resolve('../src/utils/logger')];
   require('../src/utils/logger');
 

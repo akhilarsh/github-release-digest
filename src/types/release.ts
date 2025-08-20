@@ -2,14 +2,27 @@
  * Information about a GitHub release
  */
 export interface ReleaseInfo {
-  repository: string;
-  tagName: string;
-  name: string;
-  publishedAt: string;
-  description: string;
-  url: string;
-  author: string;
-  isPrerelease: boolean;
+  repository: string;        // Added during processing
+  tagName: string;          // From GraphQL
+  name: string;             // From GraphQL (name || tagName)
+  publishedAt: string;      // From GraphQL
+  description: string;      // From GraphQL (description || '')
+  url: string;              // From GraphQL
+  author: string;           // From GraphQL (author.login)
+  isPrerelease: boolean;    // From GraphQL
+}
+
+/**
+ * Configuration for release summary formatting
+ */
+export interface SummaryConfig {
+  timeframe: {
+    type: 'hours' | 'days' | 'date';
+    value: number | Date;
+    startDate?: Date;
+    endDate?: Date;
+  };
+  includeDescriptions?: boolean; // If true, include detailed descriptions; if false or undefined, show only summary table
 }
 
 /**
