@@ -102,7 +102,7 @@ async function createSummaryDetails(
     for (const release of repoReleases) {
       const dateStr = formatDateForTable(release.publishedAt);
       const versionText = extractVersionFromName(release.name);
-      repoMessage += `                  | *${versionText} | ${dateStr} | ${release.url}*\n`;
+      repoMessage += `                  | ${versionText} | ${dateStr} | ${release.url}\n`;
     }
 
     // Generate combined summary for all releases in this repository
@@ -118,7 +118,7 @@ async function createSummaryDetails(
       if (config.includeDescriptions) {
         try {
           const summarizedDescription = await summarizeText(combinedDescription);
-          repoMessage += `                  | *Summary:*\n`;
+          repoMessage += `                  | Summary:\n`;
 
           // Wrap the summary text to fit the column width
           const detailsColWidth = 110;
@@ -201,14 +201,13 @@ export function createSummaryTable(releases: ReleaseInfo[]): string {
   for (const [repoName, repoReleases] of releasesByRepo) {
     for (const release of repoReleases) {
       const dateStr = formatDateForTable(release.publishedAt);
-      const shortUrl = release.url.length > urlColWidth ? `${release.url.substring(0, urlColWidth - 3)}...` : release.url;
 
       // Show repo name in every row for simplicity
       const repoPadded = repoName.padEnd(repoColWidth);
       const versionText = extractVersionFromName(release.name);
       const versionPadded = versionText.padEnd(versionColWidth);
       const datePadded = dateStr.padEnd(dateColWidth);
-      const urlPadded = shortUrl.padEnd(urlColWidth);
+      const urlPadded = release.url.padEnd(urlColWidth);
 
       tableMessage += `${repoPadded} | ${versionPadded} | ${datePadded} | ${urlPadded}\n`;
     }
